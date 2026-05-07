@@ -2029,7 +2029,7 @@ client.on('roleCreate', async (role) => {
 
     const executor = await getAuditExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
 
-    if (executor && isIgnored(executor.id, executor.bot)) {
+    if (!executor || isIgnored(executor.id, executor.bot)) {
         saveRole(role);
         return;
     }
@@ -2093,7 +2093,14 @@ client.on('roleDelete', async (role) => {
 
     const executor = await getAuditExecutor(role.guild, AuditLogEvent.RoleDelete, role.id);
 
-    if (executor && isIgnored(executor.id, executor.bot)) {
+    if (!executor) {
+        await sendLog(role.guild, `تم حذف رتبة: ${snapshot.name} — ما عرفت مين — ما رجعتها`);
+        roleSnapshots.delete(key);
+        deletedRoleMemberBuffer.delete(role.id);
+        return;
+    }
+
+    if (isIgnored(executor.id, executor.bot)) {
         roleSnapshots.delete(key);
         deletedRoleMemberBuffer.delete(role.id);
         return;
@@ -2174,8 +2181,7 @@ client.on('roleUpdate', async (oldRole, newRole) => {
 
     const executor = await getAuditExecutor(newRole.guild, AuditLogEvent.RoleUpdate, newRole.id);
 
-    if (executor && isIgnored(executor.id, executor.bot)) {
-        saveRole(newRole);
+    if (!executor || isIgnored(executor.id, executor.bot)) {        saveRole(newRole);
         return;
     }
 
@@ -2422,17 +2428,19 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         const added = [...newMember.roles.cache.keys()].filter(id => id !== newMember.guild.id && !oldRoleSet.has(id));
         const removed = [...(storedRoles ?? new Set())].filter(id => id !== newMember.guild.id && !newRoleIds.has(id));
 
-        if (added.length > 0 || removed.length > 0) {
-            const executor = await getAuditExecutor(newMember.guild, AuditLogEvent.MemberRoleUpdate, newMember.id, true);
-            const executorText = executor ? `بواسطة <@${executor.id}>` : 'بواسطة غير معروف';
+         if (added.length > 0 || removed.length > 0) {
+            if (!isBotAction(memberKey(newMember.guild.id, newMember.id))) {
+                const executor = await getAuditExecutor(newMember.guild, AuditLogEvent.MemberRoleUpdate, newMember.id, true);
+                const executorText = executor ? `بواسطة <@${executor.id}>` : 'بواسطة غير معروف';
 
-            for (const roleId of added) {
-                const role = newMember.guild.roles.cache.get(roleId);
-                await roleLogChannel.send(`تمت إضافة رتبة **${role?.name ?? roleId}** لـ <@${newMember.id}> ${executorText}`).catch(() => {});
-            }
-            for (const roleId of removed) {
-                const role = newMember.guild.roles.cache.get(roleId);
-                await roleLogChannel.send(`تمت إزالة رتبة **${role?.name ?? roleId}** من <@${newMember.id}> ${executorText}`).catch(() => {});
+                for (const roleId of added) {
+                    const role = newMember.guild.roles.cache.get(roleId);
+                    await roleLogChannel.send(`تمت إضافة رتبة **${role?.name ?? roleId}** لـ <@${newMember.id}> ${executorText}`).catch(() => {});
+                }
+                for (const roleId of removed) {
+                    const role = newMember.guild.roles.cache.get(roleId);
+                    await roleLogChannel.send(`تمت إزالة رتبة **${role?.name ?? roleId}** من <@${newMember.id}> ${executorText}`).catch(() => {});
+                }
             }
         }
     }
@@ -2458,6 +2466,17 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
             markBotAction(memberKey(newMember.guild.id, newMember.id));
             await newMember.roles.remove(UNVERIFIED_ROLE_ID, 'Has other roles, removing unverified').catch((err) => {
                 console.log(`[REMOVE UNVERIFIED ERR] ${err.message}`);
+            });
+        }
+    }
+        if (newMember.roles.cache.has(VERIFY_ROLE_ID)) {
+        const otherRolesForVerify = newMember.roles.cache.filter(
+            (role) => role.id !== newMember.guild.id && role.id !== VERIFY_ROLE_ID && role.id !== UNVERIFIED_ROLE_ID
+        );
+        if (otherRolesForVerify.size > 0) {
+            markBotAction(memberKey(newMember.guild.id, newMember.id));
+            await newMember.roles.remove(VERIFY_ROLE_ID, 'Has other roles, removing verify role').catch((err) => {
+                console.log(`[REMOVE VERIFY ERR] ${err.message}`);
             });
         }
     }
