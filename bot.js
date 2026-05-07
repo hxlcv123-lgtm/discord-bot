@@ -430,6 +430,7 @@ const client = new Client({
 const restoringRoles = new Map();
 const channelSnapshots = new Map();
 const memberRoleSnapshots = new Map();
+const roleSnapshots = new Map();
 
 const botActions = new Set();
 const punishCooldowns = new Map();
@@ -988,7 +989,7 @@ async function handleAvatarSeparator(message) {
 
     await wait(700);
 
-    const file = isSep2Channel ? AVATAR_SEPARATOR_FILE_2 : AVATAR_SEPARATOR_FILE;
+    const file = AVATAR_SEPARATOR_FILE;
 
     await message.channel.send({
         files: [file],
@@ -2492,10 +2493,12 @@ client.on('guildMemberAdd', async (member) => {
         if (executor && !isIgnored(executor.id, executor.bot)) {
             const executorMember = await member.guild.members.fetch(executor.id).catch(() => null);
             if (executorMember) {
-                await executorMember.kick('حماية: إضافة بوت للسيرفر').catch(async (err) => {
-                    await sendLog(member.guild, `ما قدرت أطرد ${executor.tag} — ${err.message}`);
-                });
-                await sendLog(member.guild, `طردت <@${executor.id}> بسبب إضافة بوت`);
+                      await removeAllRoles(executorMember);
+                const botAddLogCh = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+                if (botAddLogCh && botAddLogCh.isTextBased()) {
+                    await botAddLogCh.send(`@here\n\nperson : <@${executor.id}>\n\nthe reason : إضافة بوت للسيرفر\n\nID : ${executor.id}`).catch(() => {});
+                }
+                await sendLog(member.guild, `سحبت رتب <@${executor.id}> وأعطيته رتبة التفعيل بسبب إضافة بوت`);
             }
         }
         return;
