@@ -989,8 +989,8 @@ async function handleAvatarSeparator(message) {
 
     await wait(700);
 
-    const file = AVATAR_SEPARATOR_FILE;
-
+    const file = isSep2Channel ? AVATAR_SEPARATOR_FILE_2 : AVATAR_SEPARATOR_FILE;
+    
     await message.channel.send({
         files: [file],
     }).catch(async (error) => {
